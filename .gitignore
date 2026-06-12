@@ -1,0 +1,16 @@
+# General
+.DS_Store
+node_modules/
+dist/
+build/
+.env
+
+# Go
+/backend-go/bin/
+/backend-go/obj/
+
+# Flutter
+/mobile-flutter/.dart_tool/
+/mobile-flutter/.flutter-plugins
+/mobile-flutter/.flutter-plugins-dependencies
+/mobile-flutter/build/
