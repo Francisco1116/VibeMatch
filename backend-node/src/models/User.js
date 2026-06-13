@@ -27,6 +27,11 @@ const userSchema = new mongoose.Schema(
       required: [true, '密碼雜湊為必填'],
       select: false, // 預設查詢不返回密碼雜湊
     },
+    refreshToken: {
+      type: String,
+      default: null,
+      select: false, // 預設查詢不返回 Refresh Token
+    },
     currentVibe: {
       type: String,
       default: '',
