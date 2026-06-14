@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>VibeMatch WS 完整測試器 (配對+聊天)</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        input { width: 300px; padding: 5px; margin-bottom: 5px; }
+        button { padding: 5px 15px; cursor: pointer; margin-right: 5px; margin-bottom: 5px; }
+        #log { background: #f4f4f4; padding: 10px; height: 300px; overflow-y: auto; margin-top: 10px; font-family: monospace; border: 1px solid #ccc; }
+        .sent { color: blue; }
+        .received { color: green; font-weight: bold; }
+        .chat-msg { color: #d35400; font-weight: bold; } /* 聊天訊息特別上色 */
+        /* 聊天區塊預設隱藏，配對成功才顯示 */
+        #chatArea { margin-top: 15px; padding: 15px; background: #eef; border: 1px solid #ccd; display: none; }
+    </style>
+</head>
+<body>
+    <h3>🔌 VibeMatch 完整測試 (配對+聊天)</h3>
+    <input type="text" id="tokenInput" placeholder="請貼上你的 Access Token...">
+    <div>
+        <button onclick="connectWS()">1. 連線</button>
+        <button onclick="findMatch()">2. 尋找配對</button>
+        <button onclick="disconnectWS()">斷線</button>
+    </div>
+
+    <div id="chatArea">
+        <h4>💬 聊天室 (房間 ID: <span id="roomDisplay">尚未配對</span>)</h4>
+        <input type="text" id="chatInput" placeholder="輸入聊天訊息...">
+        <button onclick="sendChat()">傳送</button>
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+        let ws = null;
+        let currentRoomId = null; // 在前端記住目前的房間 ID
+        
+        const logDiv = document.getElementById('log');
+        const chatArea = document.getElementById('chatArea');
+        const roomDisplay = document.getElementById('roomDisplay');
+        const chatInput = document.getElementById('chatInput');
+
+        function writeLog(message, type = '') {
+            logDiv.innerHTML += `<div class="${type}">[${new Date().toLocaleTimeString()}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight; // 自動捲動到底部
+        }
+
+        function connectWS() {
+            const token = document.getElementById('tokenInput').value;
+            if (!token) return alert("請先輸入 Token！");
+
+            writeLog("嘗試連線中...");
+            ws = new WebSocket(`ws://localhost:8080/ws?token=${token}`);
+
+            ws.onopen = () => writeLog("✅ 連線成功！可以開始尋找配對了。");
+            ws.onclose = () => {
+                writeLog("❌ 連線已斷開！");
+                resetChat();
+            };
+            ws.onerror = (error) => writeLog("⚠️ 發生錯誤，請檢查終端機。");
+            
+            // 核心：處理來自伺服器的訊息
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.action === "matched") {
+                        // 1. 配對成功，解鎖聊天介面
+                        writeLog(`🎉 配對成功！房間 ID: ${data.roomId}`, 'received');
+                        currentRoomId = data.roomId;
+                        roomDisplay.innerText = data.roomId;
+                        chatArea.style.display = 'block'; 
+                    } else if (data.action === "chat") {
+                        // 2. 收到聊天訊息
+                        // 取 senderId 的前 5 個字元做顯示，比較乾淨
+                        const shortId = data.senderId.substring(0, 5); 
+                        writeLog(`👤 [${shortId}...]: ${data.message}`, 'chat-msg');
+                    } else {
+                        writeLog(`📥 收到未知訊息: ${event.data}`, 'received');
+                    }
+                } catch (e) {
+                    writeLog(`📥 收到非 JSON 訊息: ${event.data}`, 'received');
+                }
+            };
+        }
+
+        function findMatch() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return alert("請先連線！");
+            const msg = JSON.stringify({ action: "find_match" });
+            ws.send(msg);
+            writeLog(`📤 發送配對請求...`, 'sent');
+        }
+
+        function sendChat() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return alert("請先連線！");
+            if (!currentRoomId) return alert("尚未配對成功，無法聊天！");
+
+            const message = chatInput.value;
+            if (!message) return;
+
+            // 組裝聊天專用的 JSON 格式
+            const msg = JSON.stringify({
+                action: "chat",
+                roomId: currentRoomId,
+                message: message
+            });
+
+            ws.send(msg);
+            writeLog(`📤 送出: ${message}`, 'sent');
+            chatInput.value = ''; // 傳送後清空輸入框
+        }
+
+        function disconnectWS() {
+            if (ws) ws.close();
+            resetChat();
+        }
+
+        function resetChat() {
+            currentRoomId = null;
+            chatArea.style.display = 'none';
+            roomDisplay.innerText = '尚未配對';
+        }
+    </script>
+</body>
+</html>
