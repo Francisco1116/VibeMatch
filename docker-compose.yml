@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # 1. MongoDB 資料庫
+  mongodb:
+    image: mongo:latest
+    container_name: vibematch-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  # 2. Redis 快取
+  redis:
+    image: redis:alpine
+    container_name: vibematch-redis
+    ports:
+      - "6379:6379"
+
+  # 3. Node.js 服務
+  backend-node:
+    build: ./backend-node  # 告訴 Compose 去哪裡找 Dockerfile
+    container_name: vibematch-node
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongodb            # 確保資料庫先啟動
+    env_file:
+      - ./backend-node/.env # 自動載入環境變數
+      # 新增這段：強制把連線網址從 localhost 改成 mongodb 容器
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/vibematch
+
+  # 4. Go 服務
+  backend-go:
+    build: ./backend-go
+    container_name: vibematch-go
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+    env_file:
+      - ./backend-go/.env
+      # 新增這段：強制把連線網址從 localhost 改成 redis 容器
+    environment:
+      - REDIS_URL=redis:6379
+
+# 定義具名儲存卷，確保資料庫重啟後資料不遺失
+volumes:
+  mongo_data:
